@@ -1,247 +1,667 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>MTG True Battle Simulator</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>MTG — True Battle Simulator (Phase 1)</title>
 <style>
-body { font-family: Arial, sans-serif; background:#222; color:#eee; margin:0; padding:0;}
-h1,h2 { text-align:center;}
-#container { display:flex; flex-direction:column; align-items:center; margin:10px;}
-#battlefield { display:flex; justify-content:space-between; width:95%; margin-top:20px;}
-.player-area { width:45%; border:1px solid #555; padding:10px; background:#333;}
-.hand, .graveyard, .battlefield-cards { display:flex; flex-wrap:wrap; gap:5px; margin-top:10px;}
-.card { border:1px solid #888; background:#444; width:90px; text-align:center; font-size:12px; padding:2px; cursor:pointer;}
-.card.tapped { background:#666; text-decoration:line-through;}
-button { margin:5px; padding:5px 10px; background:#555; color:#eee; border:none; cursor:pointer;}
-#turn-log { width:95%; max-height:200px; overflow-y:auto; border:1px solid #555; padding:5px; background:#111; margin-top:10px;}
-#deck-import { width:95%; margin:10px;}
-textarea { width:100%; height:100px; background:#333; color:#eee; border:1px solid #555;}
-select { margin-left:10px;}
+  :root{--bg:#0f1720;--panel:#0b1220;--muted:#9aa6b2;--accent:#2aa198}
+  body{margin:0;font-family:Inter,ui-sans-serif,system-ui,Helvetica,Arial;color:#e6eef6;background:linear-gradient(180deg,#041223 0%,#071522 100%);-webkit-font-smoothing:antialiased}
+  header{padding:12px 20px;display:flex;align-items:center;gap:12px;border-bottom:1px solid rgba(255,255,255,.03)}
+  h1{font-size:18px;margin:0}
+  .topbar{display:flex;gap:8px;align-items:center;margin-left:auto}
+  .container{display:grid;grid-template-columns:1fr 420px;gap:14px;padding:14px}
+  .panel{background:var(--panel);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,.03)}
+  textarea{width:100%;height:120px;background:#081020;color:#dfe9f2;border:1px solid rgba(255,255,255,.04);padding:8px;border-radius:8px}
+  select,input,button{font-size:13px;padding:8px;border-radius:8px;border:0;background:var(--accent);color:#042;cursor:pointer}
+  button.alt{background:#123; color:#cfe}
+  .zones{display:flex;flex-direction:column;gap:10px}
+  .zone-row{display:flex;gap:10px;align-items:flex-start}
+  .zone{flex:1;min-height:80px;border-radius:8px;padding:8px;background:linear-gradient(180deg,#071323,#081428);border:1px solid rgba(255,255,255,.02);overflow:auto}
+  .zone .card{display:inline-block;background:#0d2230;padding:6px 8px;margin:6px;border-radius:6px;border:1px solid rgba(255,255,255,.02);font-size:12px;cursor:pointer}
+  .card.tapped{opacity:.6;transform:rotate(-15deg);display:inline-block}
+  .stats{display:flex;gap:8px;align-items:center}
+  #log{height:200px;overflow:auto;background:#07101a;padding:8px;border-radius:8px;font-size:13px;color:var(--muted)}
+  .row{display:flex;gap:8px;align-items:center}
+  .small{font-size:13px;color:var(--muted)}
+  .stackList{max-height:200px;overflow:auto}
+  .flex-col{display:flex;flex-direction:column;gap:8px}
+  .split{display:flex;gap:8px}
+  .card.big{width:120px;padding:10px}
+  footer{padding:12px;color:var(--muted);text-align:center}
+  @media (max-width:1000px){.container{grid-template-columns:1fr;}}
 </style>
 </head>
 <body>
-<h1>MTG True Battle Simulator</h1>
-
-<div id="deck-import">
-  <h2>Import Your Deck JSON</h2>
-  <textarea id="playerDeckJson" placeholder="Paste your deck JSON here"></textarea><br>
-  <label for="aiLevel">AI Difficulty:</label>
-  <select id="aiLevel">
-    <option value="easy">Easy</option>
-    <option value="medium">Medium</option>
-    <option value="hard">Hard</option>
-  </select>
-  <button onclick="startBattle()">Start Battle</button>
-</div>
-
-<div id="container" style="display:none;">
-  <div id="battlefield">
-    <div class="player-area" id="playerArea">
-      <h3>Player Life: <span id="playerLife">20</span></h3>
-      <div>Lands Played: <span id="playerLands">0</span></div>
-      <div>Hand:</div>
-      <div class="hand" id="playerHand"></div>
-      <div>Battlefield:</div>
-      <div class="battlefield-cards" id="playerBattlefield"></div>
-      <div>Graveyard:</div>
-      <div class="graveyard" id="playerGraveyard"></div>
-      <button onclick="drawCard()">Draw Card</button>
-      <button onclick="playLand()">Play Land</button>
-      <button onclick="endMainPhase()">End Main Phase</button>
-      <button onclick="attackPhase()">Attack Phase</button>
-      <button onclick="endTurn()">End Turn</button>
-    </div>
-    <div class="player-area" id="aiArea">
-      <h3>AI Life: <span id="aiLife">20</span></h3>
-      <div>Lands Played: <span id="aiLands">0</span></div>
-      <div>Battlefield:</div>
-      <div class="battlefield-cards" id="aiBattlefield"></div>
-      <div>Graveyard:</div>
-      <div class="graveyard" id="aiGraveyard"></div>
-    </div>
+<header>
+  <h1>MTG True Battle — Phase 1</h1>
+  <div class="topbar">
+    <div class="small">Import deck JSON from your deck builder (it accepts `deck` array with `count`/`quantity`)</div>
   </div>
-  <div id="turn-log"></div>
+</header>
+
+<div class="container">
+  <main class="panel">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="stats">
+        <div><strong>Player Life</strong> <span id="plife">20</span></div>
+        <div style="margin-left:8px"><strong>AI Life</strong> <span id="alife">20</span></div>
+      </div>
+      <div class="row">
+        <select id="aiDifficulty"><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option></select>
+        <button id="startBtn" class="alt">Start Match</button>
+      </div>
+    </div>
+
+    <section style="margin-top:12px" class="zones">
+      <div style="display:flex;gap:8px">
+        <div style="flex:1">
+          <div class="small">Deck import</div>
+          <textarea id="deckJson" placeholder='Paste {"deck":[{ "id":"local:Card","name":"Card","count":1, "type_line":"Creature", "mana_cost":"1G", "oracle_text":"", "power":"2","toughness":"2"}]}'></textarea>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button id="importBtn">Import Deck</button>
+            <button id="fetchMissingBtn">Fetch missing data (Scryfall)</button>
+            <button id="shuffleBtn">Shuffle Library</button>
+            <button id="resetBtn" class="alt">Reset</button>
+          </div>
+          <div id="importMsg" class="small" style="margin-top:6px;color:#cfe"></div>
+        </div>
+
+        <div style="width:230px">
+          <div class="small">Game controls</div>
+          <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px">
+            <div class="row">
+              <button id="drawBtn">Draw</button>
+              <button id="playLandBtn">Play Land</button>
+              <button id="untapBtn" class="alt">Untap / Next Phase</button>
+            </div>
+            <div class="row">
+              <button id="castBtn">Cast (selected)</button>
+              <button id="passBtn" class="alt">Pass Priority</button>
+              <button id="endTurnBtn" class="alt">End Turn</button>
+            </div>
+            <div class="small">Phase: <span id="phaseLabel">-</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="zone-row">
+        <div class="zone" id="playerLibraryZone"><strong>Library</strong><div id="playerLibrary" style="margin-top:6px"></div></div>
+        <div class="zone" id="playerHandZone"><strong>Hand</strong><div id="playerHand" style="margin-top:6px"></div></div>
+        <div class="zone" id="playerBattleZone"><strong>Battlefield</strong><div id="playerBattle" style="margin-top:6px"></div></div>
+      </div>
+
+      <div class="zone-row" style="margin-top:6px">
+        <div class="zone" id="stackZone"><strong>Stack</strong><div id="stackList" class="stackList" style="margin-top:6px"></div></div>
+        <div class="zone" id="graveZone"><strong>Graveyards</strong>
+          <div style="display:flex;gap:8px;margin-top:6px">
+            <div style="flex:1"><small>Player</small><div id="playerGrave"></div></div>
+            <div style="flex:1"><small>AI</small><div id="aiGrave"></div></div>
+          </div>
+        </div>
+        <div class="zone" id="aiBattleZone"><strong>AI Battlefield</strong><div id="aiBattle" style="margin-top:6px"></div></div>
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:flex-start">
+        <div style="flex:1">
+          <div class="small">Log</div>
+          <div id="log" style="margin-top:6px"></div>
+        </div>
+        <div style="width:260px" class="panel">
+          <div class="small">Preview / Selected Card</div>
+          <div id="selectedPreview" style="margin-top:8px"></div>
+          <div style="margin-top:8px" class="small">Stack controls: Select a stack item and resolve or cancel</div>
+          <div style="display:flex;gap:6px;margin-top:6px">
+            <button id="resolveTop">Resolve top</button>
+            <button id="cancelTop" class="alt">Remove top</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <aside class="panel">
+    <div class="flex-col">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong>Match Info</strong>
+        <div class="small">Cached Scryfall: <span id="sfCache">0</span></div>
+      </div>
+
+      <div class="small">AI Difficulty</div>
+      <div style="display:flex;gap:8px"><select id="aiModeSide"><option>easy</option><option>medium</option><option>hard</option></select></div>
+
+      <hr style="border-color:rgba(255,255,255,.04)">
+
+      <div><strong>AI / Debug</strong></div>
+      <div class="small">Click to toggle card tapped state</div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button id="aiStep" class="alt">AI Step</button>
+        <button id="showState">Show State (console)</button>
+      </div>
+
+      <hr style="border-color:rgba(255,255,255,.04)">
+
+      <div><strong>Notes</strong></div>
+      <div class="small">This is a Phase 1 engine. Complex per-card rules may require manual handling.</div>
+    </div>
+  </aside>
 </div>
+
+<footer class="panel">
+  Built for GitHub Pages. Uses Scryfall (direct + proxy fallback) to enrich missing card fields.
+</footer>
 
 <script>
-let playerDeck=[], aiDeck=[], playerHand=[], aiHand=[], playerBattlefield=[], aiBattlefield=[], playerGrave=[], aiGrave=[];
-let playerLife=20, aiLife=20, playerLands=0, aiLands=0, turn='player', phase='main';
-let aiDifficulty='easy', maxLandsPerTurn=1;
+/* Phase 1 MTG Engine — single-file
+   - Accepts deck JSON: top-level { "deck": [ { id?, name, count or quantity, type_line?, mana_cost?, oracle_text?, power?, toughness? } ] }
+   - Normalizes to internal card objects and expands copies.
+   - Tries to fetch missing data from Scryfall (caching in localStorage).
+*/
 
-function expandDeck(deckJson){
-  let deck=[];
-  deckJson.deck.forEach(card=>{
-    for(let i=0;i<card.quantity;i++){
-      deck.push({...card, tapped:false});
+// ---------- Config ----------
+const SRY_BASE = 'https://api.scryfall.com/cards/named?exact=';
+const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+const SF_CACHE_KEY = 'sf_cache_v1';
+
+// ---------- State ----------
+let state = {
+  player: { library:[], hand:[], battlefield:[], grave:[], life:20, landsPlayed:0 },
+  ai:     { library:[], hand:[], battlefield:[], grave:[], life:20, landsPlayed:0 },
+  stack: [], // top is last
+  phase: 'idle', // untap, upkeep, draw, main, combat, secondMain, end
+  activePlayer: 'player',
+  turn: 0,
+  scryfallCache: JSON.parse(localStorage.getItem(SF_CACHE_KEY)||'{}')
+};
+
+// ---------- Utilities ----------
+function log(msg){ const l=document.getElementById('log'); l.innerHTML += msg + '<br>'; l.scrollTop = l.scrollHeight; }
+function setPhase(p){ state.phase=p; document.getElementById('phaseLabel').innerText = p; }
+function saveCache(){ localStorage.setItem(SF_CACHE_KEY, JSON.stringify(state.scryfallCache)); document.getElementById('sfCache').innerText = Object.keys(state.scryfallCache).length; }
+
+// normalize imported JSON deck into array of cards (expanded by quantity/count)
+function normalizeImport(obj){
+  if(!obj) throw new Error('No JSON');
+  const arr = obj.deck || obj.cards || obj; // be forgiving
+  if(!Array.isArray(arr)) throw new Error('Missing deck array');
+  const out = [];
+  arr.forEach(item=>{
+    const q = item.count ?? item.quantity ?? 1;
+    const name = item.name || (item.cardName) || (item.id && item.id.replace(/^local:/,''));
+    for(let i=0;i<q;i++){
+      out.push({
+        id: item.id || 'local:' + name,
+        name: name,
+        type_line: item.type_line || '',
+        mana_cost: item.mana_cost || '',
+        oracle_text: item.oracle_text || '',
+        power: item.power ?? item.p.t ?? item.pwr ?? null,
+        toughness: item.toughness ?? item.t ?? item.tgh ?? null,
+        tapped: false,
+        zone: 'library',
+        raw: item
+      });
     }
   });
-  return deck;
+  return out;
 }
 
-function startBattle(){
-  playerDeck=[], aiDeck=[], playerHand=[], aiHand=[], playerBattlefield=[], aiBattlefield=[], playerGrave=[], aiGrave=[];
-  playerLife=20; aiLife=20; playerLands=0; aiLands=0; turn='player'; phase='main';
-  document.getElementById('container').style.display='flex';
-  document.getElementById('turn-log').innerHTML='';
+// shuffle in-place
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 
-  aiDifficulty = document.getElementById('aiLevel').value;
-
+// Scryfall fetch by exact name with fallback proxy & cache
+async function scryFetchByName(name){
+  if(!name) return null;
+  if(state.scryfallCache[name]) return state.scryfallCache[name];
   try{
-    const importedJson=JSON.parse(document.getElementById('playerDeckJson').value);
-    playerDeck = expandDeck(importedJson);
-  }catch(e){ alert('Invalid JSON'); return; }
-
-  aiDeck = generateAIDeck();
-  for(let i=0;i<7;i++){ drawCard('player'); drawCard('ai'); }
-
-  logTurn("Battle started. Player goes first.");
-  updateUI();
-}
-
-function generateAIDeck(){
-  let aiD=[];
-  for(let i=0;i<60;i++){
-    let card = playerDeck[Math.floor(Math.random()*playerDeck.length)];
-    aiD.push({...card, tapped:false});
+    const url = SRY_BASE + encodeURIComponent(name);
+    let r = await fetch(url);
+    if(!r.ok) throw new Error('direct failed');
+    const json = await r.json();
+    state.scryfallCache[name] = json; saveCache();
+    return json;
+  }catch(e){
+    // proxy fallback
+    try{
+      const prox = CORS_PROXY + encodeURIComponent(SRY_BASE + encodeURIComponent(name));
+      const r2 = await fetch(prox);
+      if(!r2.ok) throw new Error('proxy failed');
+      const j2 = await r2.json();
+      state.scryfallCache[name] = j2; saveCache();
+      return j2;
+    }catch(err){
+      console.warn('scry failed',err);
+      return null;
+    }
   }
-  return aiD;
 }
 
-function drawCard(who='player'){
-  if(who==='player'){ if(playerDeck.length==0) return; playerHand.push(playerDeck.shift()); }
-  else{ if(aiDeck.length==0) return; aiHand.push(aiDeck.shift()); }
-  updateUI();
+// enrich cards missing type_line/mana_cost/pwr/tgh
+async function enrichCards(cards, progressCallback){
+  for(let i=0;i<cards.length;i++){
+    const c = cards[i];
+    if(!c.type_line || c.type_line.trim()==='' || !c.mana_cost){
+      const sf = await scryFetchByName(c.name);
+      if(sf){
+        c.type_line = c.type_line || sf.type_line || '';
+        c.mana_cost = c.mana_cost || (sf.mana_cost || '');
+        c.oracle_text = c.oracle_text || sf.oracle_text || '';
+        if(sf.power) c.power = c.power;
+        if(sf.toughness) c.toughness = c.toughness;
+      }
+    }
+    progressCallback && progressCallback(i+1, cards.length);
+  }
 }
 
-function playLand(){
-  if(turn!=='player' || phase!=='main') return;
-  let landIndex = playerHand.findIndex(c=>c.type_line.toLowerCase().includes('land'));
-  if(landIndex<0){ alert("No land in hand!"); return; }
-  if(playerLands>=maxLandsPerTurn){ alert("Already played a land this turn!"); return; }
-  playerLands++;
-  let land = playerHand.splice(landIndex,1)[0];
-  playerBattlefield.push(land);
-  logTurn("Player played land: "+land.name);
-  updateUI();
+// simple keyword detection (from oracle_text + type_line)
+function detectKeywords(c){
+  const text = ((c.oracle_text||'') + ' ' + (c.type_line||'')).toLowerCase();
+  return {
+    flying: text.includes('flying'),
+    trample: text.includes('trample'),
+    lifelink: text.includes('lifelink'),
+    deathtouch: text.includes('deathtouch'),
+    haste: text.includes('haste'),
+    reach: text.includes('reach'),
+    firstStrike: text.includes('first strike'),
+    doubleStrike: text.includes('double strike'),
+    vigilance: text.includes('vigilance'),
+    hexproof: text.includes('hexproof')
+  };
 }
 
-function endMainPhase(){
-  if(turn!=='player') return;
-  phase='combat';
-  logTurn("Main phase ended. Entering combat.");
+// compute mana cost numeric (very rough): numeric digits + colored symbols count
+function costNumber(c){
+  if(!c.mana_cost) return 0;
+  let s = c.mana_cost;
+  let num = 0;
+  const m = s.match(/\d+/);
+  if(m) num += parseInt(m[0]);
+  const colored = s.match(/[WUBRG]/gi);
+  if(colored) num += colored.length;
+  // treat X as 0 for now
+  return num;
 }
 
-function attackPhase(){
-  if(turn!=='player' || phase!=='combat') return;
-  let attackers = playerBattlefield.filter(c=>c.type_line.toLowerCase().includes('creature') && !c.tapped);
-  if(attackers.length===0){ logTurn("No creatures to attack."); return; }
-  let damage = 0;
-  attackers.forEach(c=>{
-    damage += parseInt(c.power||1);
-    c.tapped=true;
+// ---------- UI render ----------
+function renderAll(){
+  // library lists show counts
+  const plib = document.getElementById('playerLibrary');
+  plib.innerHTML = state.player.library.length + ' cards';
+  const alib = document.getElementById('aiLibrary');
+  alib.innerHTML = state.ai.library.length + ' cards';
+
+  // hand
+  const ph = document.getElementById('playerHand'); ph.innerHTML='';
+  state.player.hand.forEach((c,idx)=>{
+    const el = document.createElement('div'); el.className='card'; el.textContent = c.name;
+    el.onclick = ()=> selectCard('player', idx);
+    ph.appendChild(el);
   });
-  aiLife -= damage;
-  logTurn("Player attacks with "+attackers.length+" creatures for "+damage+" damage.");
-  checkWin();
-  updateUI();
-  phase='main';
+
+  // battlefield
+  const pb = document.getElementById('playerBattle'); pb.innerHTML='';
+  state.player.battlefield.forEach((c,idx)=>{
+    const el=document.createElement('div'); el.className='card' + (c.tapped? ' tapped':''); el.textContent=c.name + (c.power?(' '+c.power+'/'+c.toughness):'');
+    el.onclick = ()=> toggleTapped(state.player.battlefield, idx);
+    pb.appendChild(el);
+  });
+
+  const ab = document.getElementById('aiBattle'); ab.innerHTML='';
+  state.ai.battlefield.forEach((c,idx)=>{
+    const el=document.createElement('div'); el.className='card' + (c.tapped? ' tapped':''); el.textContent=c.name + (c.power?(' '+c.power+'/'+c.toughness):'');
+    el.onclick = ()=> toggleTapped(state.ai.battlefield, idx);
+    ab.appendChild(el);
+  });
+
+  // graves
+  document.getElementById('playerGrave').innerText = state.player.grave.length;
+  document.getElementById('aiGrave').innerText = state.ai.grave.length;
+
+  // stack
+  const s = document.getElementById('stackList'); s.innerHTML='';
+  state.stack.slice().reverse().forEach((item, i)=>{
+    const d = document.createElement('div'); d.className='card big'; d.textContent = item.controller + ': ' + item.card.name + ' ['+item.type+']';
+    s.appendChild(d);
+  });
+
+  // life
+  document.getElementById('plife').innerText = state.player.life;
+  document.getElementById('alife').innerText = state.ai.life;
+  document.getElementById('sfCache').innerText = Object.keys(state.scryfallCache).length;
 }
 
-function endTurn(){
-  if(turn==='player'){
-    turn='ai'; phase='main';
-    playerLands=0;
-    playerBattlefield.forEach(c=>{ if(c.type_line.toLowerCase().includes('land')) c.tapped=false; });
-    logTurn("AI turn starts.");
-    setTimeout(aiPlayTurn,1000);
+// select card in hand for preview / casting
+let selected = { zone:'hand', idx: -1 };
+function selectCard(side, idx){
+  selected.zone = side + 'Hand'; selected.idx = idx;
+  const c = (side==='player')? state.player.hand[idx] : state.ai.hand[idx];
+  document.getElementById('selectedPreview').innerHTML = `<div><strong>${c.name}</strong><div class="small">${c.type_line || ''}</div><div class="small">${c.mana_cost||''}</div><div class="small">${(c.oracle_text||'')}</div></div>`;
+}
+
+// toggle tapped
+function toggleTapped(arr, idx){ arr[idx].tapped = !arr[idx].tapped; renderAll(); }
+
+// ---------- Game actions ----------
+function importDeckFromTextarea(){
+  const t = document.getElementById('deckJson').value.trim();
+  if(!t){ alert('Paste deck JSON first'); return; }
+  let parsed;
+  try{ parsed = JSON.parse(t); } catch(e){ alert('Invalid JSON'); return; }
+  try{
+    const cards = normalizeImport(parsed);
+    // place into player's library
+    state.player.library = shuffle(cards);
+    state.player.hand = []; state.player.battlefield=[]; state.player.grave=[];
+    state.ai = { library: [], hand: [], battlefield: [], grave: [], life:20, landsPlayed:0 };
+    document.getElementById('importMsg').innerText = 'Imported '+cards.length+' cards';
+    renderAll();
+  }catch(err){
+    alert('Import error: '+err.message);
+  }
+}
+
+// fetch missing data for player's library (and optionally ai)
+async function fetchMissing(){
+  const total = state.player.library.length;
+  if(total===0){ alert('Import deck first'); return; }
+  document.getElementById('importMsg').innerText = 'Fetching missing card data...';
+  await enrichCards(state.player.library, (i,tot)=> document.getElementById('importMsg').innerText = `Fetched ${i}/${tot}`);
+  document.getElementById('importMsg').innerText = 'Fetch complete';
+  renderAll();
+}
+
+// shuffle library
+function shufflePlayerLib(){ state.player.library = shuffle(state.player.library); renderAll(); }
+
+// draw a card for player/ai
+function draw(side='player', n=1){
+  for(let i=0;i<n;i++){
+    if(side==='player'){
+      if(state.player.library.length===0){ log('Player deck empty — cannot draw'); continue; }
+      state.player.hand.push(state.player.library.shift());
+    } else {
+      if(state.ai.library.length===0){ log('AI deck empty — cannot draw'); continue; }
+      state.ai.hand.push(state.ai.library.shift());
+    }
+  }
+  renderAll();
+}
+
+// play a land from hand (player only)
+function playLand(){
+  const idx = selected.zone==='playerHand'? selected.idx : -1;
+  if(idx<0){ alert('Select a land from your hand first'); return; }
+  const card = state.player.hand[idx];
+  if(!card.type_line.toLowerCase().includes('land')){ alert('Selected card is not a land'); return; }
+  // limit 1 land per turn
+  if(state.player.landsPlayed >= 1){ alert('You already played a land this turn'); return; }
+  // move to battlefield
+  state.player.hand.splice(idx,1);
+  state.player.battlefield.push({...card, tapped:false});
+  state.player.landsPlayed++;
+  selected.idx = -1;
+  document.getElementById('selectedPreview').innerHTML = '';
+  log('Player played land: '+card.name);
+  renderAll();
+}
+
+// casting spells (player only) - put on stack (AI may respond)
+function castSelected(){
+  if(selected.zone!=='playerHand' || selected.idx<0){ alert('Select a card in your hand to cast'); return; }
+  const card = state.player.hand[selected.idx];
+  // cost check - use numeric cost vs available untapped lands
+  const cost = costNumber(card);
+  const availableMana = state.player.battlefield.filter(c=>c.type_line.toLowerCase().includes('land') && !c.tapped).length;
+  if(cost > availableMana){ if(!card.mana_cost) { /* allow free cast? */ } else { alert('Not enough untapped lands to pay cost'); return; } }
+  // Tap lands as payment (simple auto-tap)
+  let need = cost;
+  for(const l of state.player.battlefield){
+    if(need<=0) break;
+    if(l.type_line.toLowerCase().includes('land') && !l.tapped){ l.tapped=true; need--; }
+  }
+  // move card to stack
+  state.player.hand.splice(selected.idx,1);
+  state.stack.push({ controller:'player', card:card, type:determineSpellType(card) });
+  selected.idx = -1; document.getElementById('selectedPreview').innerHTML='';
+  log('Player casts: '+card.name+' -> placed on stack');
+  renderAll();
+  // AI gets chance to respond
+  setTimeout(()=> aiRespondToStack(), 500);
+}
+
+// determine basic spell type from type_line
+function determineSpellType(card){
+  const t = (card.type_line||'').toLowerCase();
+  if(t.includes('creature')) return 'creature';
+  if(t.includes('instant')) return 'instant';
+  if(t.includes('sorcery')) return 'sorcery';
+  if(t.includes('enchantment')) return 'enchantment';
+  if(t.includes('artifact')) return 'artifact';
+  if(t.includes('land')) return 'land';
+  return 'spell';
+}
+
+// resolve top of stack
+function resolveTop(){
+  if(state.stack.length===0){ alert('Stack empty'); return; }
+  const item = state.stack.pop();
+  const c = item.card;
+  log('Resolving: '+item.controller+' -> '+c.name+' ['+item.type+']');
+  if(item.type==='creature'){
+    if(item.controller==='player') state.player.battlefield.push({...c, tapped: c.power && c.power>0 && !c.hasOwnProperty('haste') && !detectKeywords(c).haste ? true : false});
+    else state.ai.battlefield.push({...c, tapped: false});
+  } else if(item.type==='instant' || item.type==='sorcery'){
+    // very simple: if it's damage-like in oracle_text (e.g., 'deal X damage to target') we skip; for now, treat Supreme Verdict as wipe
+    if((c.name||'').toLowerCase().includes('supreme verdict')){ // boardwipe
+      log('Supreme Verdict destroys all creatures');
+      state.player.battlefield.forEach(x=> state.player.grave.push(x)); state.player.battlefield = [];
+      state.ai.battlefield.forEach(x=> state.ai.grave.push(x)); state.ai.battlefield = [];
+    } else {
+      log('Instant/sorcery resolved (no effect implemented for '+c.name+')');
+    }
+  } else if(item.type==='enchantment' || item.type==='artifact'){
+    (item.controller==='player'? state.player.battlefield : state.ai.battlefield).push({...c, tapped:false});
+  }
+  renderAll();
+}
+
+// cancel/remove top
+function cancelTop(){
+  if(state.stack.length===0){ alert('Stack empty'); return; }
+  const item = state.stack.pop();
+  const card = item.card;
+  // put into owner's grave
+  if(item.controller==='player') state.player.grave.push(card); else state.ai.grave.push(card);
+  log('Removed from stack and sent to grave: '+card.name);
+  renderAll();
+}
+
+// simple AI responder to stack - medium/hard may counter/answer
+function aiRespondToStack(){
+  const mode = document.getElementById('aiDifficulty').value;
+  if(state.stack.length===0) return;
+  const top = state.stack[state.stack.length-1];
+  // Easy: rarely respond
+  if(mode==='easy'){
+    if(Math.random()<0.15){ log('AI chooses to pass priority'); renderAll(); return; }
+  }
+  // Medium: 30% respond if has instant-like in hand
+  if(mode==='medium'){
+    const inst = state.ai.hand.find(c=> (c.type_line||'').toLowerCase().includes('instant') || (c.type_line||'').toLowerCase().includes('sorcery'));
+    if(inst && Math.random()<0.3){
+      // play it to stack if can pay
+      const cost = costNumber(inst); const manaAvail = state.ai.battlefield.filter(b=>b.type_line.toLowerCase().includes('land') && !b.tapped).length;
+      if(cost <= manaAvail){ // tap lands
+        let need = cost;
+        for(const l of state.ai.battlefield){ if(need<=0) break; if(l.type_line.toLowerCase().includes('land') && !l.tapped){ l.tapped=true; need--; } }
+        state.ai.hand.splice(state.ai.hand.indexOf(inst),1);
+        state.stack.push({ controller:'ai', card:inst, type:determineSpellType(inst) });
+        log('AI responds with '+inst.name);
+        renderAll();
+        // AI won't chain further
+        return;
+      }
+    }
+  }
+  // Hard: check for removal instants (not implemented) — for now pass
+  log('AI passes priority');
+  renderAll();
+}
+
+// cost numeric
+function costNumber(card){ return costNumberCached(card); }
+function costNumberCached(card){
+  if(!card) return 0;
+  const s = card.mana_cost || '';
+  let num = 0;
+  const m = s.match(/\d+/);
+  if(m) num += parseInt(m[0]);
+  const colored = s.match(/[WUBRG]/gi);
+  if(colored) num += colored.length;
+  return num;
+}
+
+// attack flow - player initiates combat; blocking simplified: AI auto-blocks with best trades unless human will choose in future
+function attackPhase(){
+  if(state.phase !== 'main'){ alert('You must be in main phase to attack (end main to enter combat)'); return; }
+  setPhase('combat');
+  log('--- Combat: choose attackers by clicking your creatures (will mark tapped) then Press "Declare Attackers" ---');
+  // Mark creatures clickable to toggle as attackers
+  // For simplicity, here: choose all untapped creatures without summoning sickness (no haste) as attackers
+  const attackers = state.player.battlefield.filter(c=> !c.tapped && (!detectKeywords(c).haste) );
+  if(attackers.length===0){ log('No available attackers'); setPhase('main'); return; }
+  // We'll attack with all for basic engine
+  attackers.forEach(c=> c.tapped=true);
+  // AI auto-blocks
+  const blockers = state.ai.battlefield.filter(c=> !c.tapped);
+  // simple block: pair highest-power blockers to highest-power attackers
+  let attPower = attackers.map(c=>({c,p:parseInt(c.power||1)})).sort((a,b)=>b.p-a.p);
+  let blockPower = blockers.map(c=>({c,p:parseInt(c.power||1)})).sort((a,b)=>b.p-b.p);
+  let totalDamageToAi = 0;
+  attPower.forEach((a, i)=>{
+    if(blockPower[i]){
+      // trade: both deal damage to each other
+      const atk = a.p, blk = blockPower[i].p;
+      // check first strike/double strike interplay simplified
+      const atkFirst = detectKeywords(a.c).firstStrike || detectKeywords(a.c).doubleStrike;
+      const blkFirst = detectKeywords(blockPower[i].c).firstStrike || detectKeywords(blockPower[i].c).doubleStrike;
+      // For simplicity: simultaneous
+      if(atk >= parseInt(blockPower[i].c.toughness || 1)){ state.ai.grave.push(blockPower[i].c); state.ai.battlefield.splice(state.ai.battlefield.indexOf(blockPower[i].c),1); log('AI blocker '+blockPower[i].c.name+' died'); }
+      if(blk >= parseInt(a.c.toughness || 1)){ state.player.grave.push(a.c); state.player.battlefield.splice(state.player.battlefield.indexOf(a.c),1); log('Attacker '+a.c.name+' died'); }
+    } else {
+      // unblocked -> damage to ai player
+      totalDamageToAi += a.p;
+    }
+  });
+  if(totalDamageToAi>0){
+    state.ai.life -= totalDamageToAi;
+    log('Unblocked damage to AI: '+totalDamageToAi);
+  }
+  checkForWin();
+  setPhase('main');
+  renderAll();
+}
+
+// AI turn automation: very simplified
+function aiTakeTurn(){
+  state.turn++;
+  state.activePlayer='ai';
+  state.ai.landsPlayed=0;
+  // untap AI permanents
+  state.ai.battlefield.forEach(c=> c.tapped=false);
+  // AI draw
+  draw('ai',1);
+  // play a land if available
+  const landIdx = state.ai.hand.findIndex(c=> (c.type_line||'').toLowerCase().includes('land'));
+  if(landIdx>=0 && state.ai.landsPlayed<1){
+    const l = state.ai.hand.splice(landIdx,1)[0]; state.ai.battlefield.push({...l,tapped:false}); state.ai.landsPlayed++;
+    log('AI played land: '+l.name);
+  }
+  // play creatures per difficulty
+  const mode = document.getElementById('aiModeSide').value || 'medium';
+  let mana = state.ai.battlefield.filter(b=>b.type_line && b.type_line.toLowerCase().includes('land') && !b.tapped).length;
+  // simple: play creatures that cost <= mana
+  const candidates = state.ai.hand.filter(c=> (c.type_line||'').toLowerCase().includes('creature') && costNumberCached(c) <= mana);
+  if(mode==='easy'){
+    if(candidates.length>0 && Math.random()<0.5){ const c = candidates[Math.floor(Math.random()*candidates.length)]; state.ai.hand.splice(state.ai.hand.indexOf(c),1); state.ai.battlefield.push({...c,tapped:false}); log('AI played '+c.name); }
   } else {
-    turn='player'; phase='main';
-    aiLands=0;
-    aiBattlefield.forEach(c=>{ if(c.type_line.toLowerCase().includes('land')) c.tapped=false; });
-    logTurn("Player turn starts.");
+    candidates.sort((a,b)=> (parseInt(b.power||0) - parseInt(a.power||0)));
+    candidates.slice(0,2).forEach(c=>{ state.ai.hand.splice(state.ai.hand.indexOf(c),1); state.ai.battlefield.push({...c,tapped:false}); log('AI played '+c.name); });
   }
-  updateUI();
-}
-
-function aiPlayTurn(){
-  drawCard('ai');
-  playAILand();
-  playAICreatures();
-  aiAttackPhase();
-  endTurn();
-}
-
-function playAILand(){
-  if(aiLands>=maxLandsPerTurn) return;
-  let landIndex = aiHand.findIndex(c=>c.type_line.toLowerCase().includes('land'));
-  if(landIndex>=0){
-    aiLands++;
-    let land = aiHand.splice(landIndex,1)[0];
-    aiBattlefield.push(land);
-    logTurn("AI played land: "+land.name);
+  // attack with creatures (very simple)
+  const attackers = state.ai.battlefield.filter(c=> (c.type_line||'').toLowerCase().includes('creature') && !c.tapped);
+  if(attackers.length>0){
+    let damage = attackers.reduce((s,c)=> s + (parseInt(c.power||1)), 0);
+    state.player.life -= damage;
+    attackers.forEach(c=> c.tapped=true);
+    log('AI attacks for '+damage+' damage');
   }
+  checkForWin();
+  state.activePlayer='player';
+  renderAll();
 }
 
-function playAICreatures(){
-  let mana=aiLands;
-  let creatures = aiHand.filter(c=>c.type_line.toLowerCase().includes('creature') && getManaCost(c)<=mana);
-  if(aiDifficulty==='easy'){
-    if(creatures.length>0){ let c=creatures[Math.floor(Math.random()*creatures.length)]; aiBattlefield.push(c); aiHand.splice(aiHand.indexOf(c),1); logTurn("AI played "+c.name); }
-  } else if(aiDifficulty==='medium'){
-    creatures.forEach(c=>{ aiBattlefield.push(c); aiHand.splice(aiHand.indexOf(c),1); logTurn("AI played "+c.name); });
-  } else {
-    creatures.sort((a,b)=>parseInt(b.power||0)-parseInt(a.power||0));
-    creatures.forEach(c=>{ aiBattlefield.push(c); aiHand.splice(aiHand.indexOf(c),1); logTurn("AI played "+c.name); });
-  }
+// check win
+function checkForWin(){
+  if(state.player.life<=0){ alert('AI wins'); resetGame(); }
+  if(state.ai.life<=0){ alert('Player wins'); resetGame(); }
 }
 
-function aiAttackPhase(){
-  let attackers = aiBattlefield.filter(c=>c.type_line.toLowerCase().includes('creature') && !c.tapped);
-  let damage=0;
-  attackers.forEach(c=>{ damage+=parseInt(c.power||1); c.tapped=true; });
-  playerLife -= damage;
-  if(attackers.length>0) logTurn("AI attacks with "+attackers.length+" creatures for "+damage+" damage.");
-  checkWin();
+// Reset game: keeps deck
+function resetGame(){
+  state.player = { library:[], hand:[], battlefield:[], grave:[], life:20, landsPlayed:0 };
+  state.ai = { library:[], hand:[], battlefield:[], grave:[], life:20, landsPlayed:0 };
+  state.stack = [];
+  setPhase('idle');
+  document.getElementById('importMsg').innerText = 'Game reset';
+  renderAll();
 }
 
-function getManaCost(card){
-  if(!card.mana_cost) return 0;
-  let cost=0;
-  let m = card.mana_cost.match(/\d+/);
-  if(m) cost+=parseInt(m[0]);
-  let colored = card.mana_cost.match(/[WUBRG]/g);
-  if(colored) cost+=colored.length;
-  return cost;
-}
+// ---------- Button wiring ----------
+document.getElementById('importBtn').onclick = ()=> importDeckFromTextarea();
+document.getElementById('fetchMissingBtn').onclick = ()=> fetchMissing();
+document.getElementById('shuffleBtn').onclick = ()=> { shufflePlayerLib(); document.getElementById('importMsg').innerText = 'Shuffled'; };
+document.getElementById('drawBtn').onclick = ()=> { draw('player',1); log('Player draws 1'); };
+document.getElementById('playLandBtn').onclick = ()=> playLand();
+document.getElementById('castBtn').onclick = ()=> castSelected();
+document.getElementById('resolveTop').onclick = ()=> resolveTop();
+document.getElementById('cancelTop').onclick = ()=> cancelTop();
+document.getElementById('startBtn').onclick = ()=>{
+  // initialize AI library by sampling random cards if player library exists
+  if(state.player.library.length===0){ alert('Import a deck first'); return; }
+  // generate AI deck as random sample of player's library names (non-ideal but ok)
+  state.ai.library = shuffle(state.player.library.map(c=> ({...c}))).slice(0,60);
+  // draw opening hands
+  state.player.hand = []; state.ai.hand = [];
+  for(let i=0;i<7;i++){ draw('player',1); draw('ai',1); }
+  state.player.life = 20; state.ai.life = 20; state.player.landsPlayed=0; state.ai.landsPlayed=0;
+  setPhase('main'); state.turn=1; state.activePlayer='player'; document.getElementById('importMsg').innerText = 'Match started';
+  renderAll();
+};
+document.getElementById('untapBtn').onclick = ()=> {
+  // untap applicable permanents
+  state.player.battlefield.forEach(c=> c.tapped=false);
+  state.player.landsPlayed=0;
+  log('Player untapped all permanents');
+  renderAll();
+};
+document.getElementById('passBtn').onclick = ()=> { log('Player passes priority'); aiRespondToStack(); };
+document.getElementById('endTurnBtn').onclick = ()=> { log('Player ends turn'); aiTakeTurn(); };
+document.getElementById('aiStep').onclick = ()=> aiTakeTurn();
+document.getElementById('showState').onclick = ()=> console.log(state);
 
-function updateUI(){
-  document.getElementById('playerLife').innerText=playerLife;
-  document.getElementById('aiLife').innerText=aiLife;
-  document.getElementById('playerLands').innerText=playerLands;
-  document.getElementById('aiLands').innerText=aiLands;
+// reset
+document.getElementById('resetBtn').onclick = ()=> resetGame();
 
-  let ph = document.getElementById('playerHand'); ph.innerHTML='';
-  playerHand.forEach(c=>{ let div=document.createElement('div'); div.className='card'; div.innerText=c.name+"\n"+c.type_line; ph.appendChild(div); });
+// expose some helpers to window for debugging
+window._mtg = { state, scryFetchByName, enrichCards, renderAll };
 
-  let pb = document.getElementById('playerBattlefield'); pb.innerHTML='';
-  playerBattlefield.forEach(c=>{ let div=document.createElement('div'); div.className='card'+(c.tapped?' tapped':''); div.innerText=c.name+"\n"+c.type_line; pb.appendChild(div); });
+// init
+saveCache();
+renderAll();
 
-  let ab = document.getElementById('aiBattlefield'); ab.innerHTML='';
-  aiBattlefield.forEach(c=>{ let div=document.createElement('div'); div.className='card'+(c.tapped?' tapped':''); div.innerText=c.name+"\n"+c.type_line; ab.appendChild(div); });
-
-  let pg = document.getElementById('playerGraveyard'); pg.innerHTML='';
-  playerGrave.forEach(c=>{ let div=document.createElement('div'); div.className='card'; div.innerText=c.name; pg.appendChild(div); });
-
-  let ag = document.getElementById('aiGraveyard'); ag.innerHTML='';
-  aiGrave.forEach(c=>{ let div=document.createElement('div'); div.className='card'; div.innerText=c.name; ag.appendChild(div); });
-}
-
-function logTurn(msg){ let log=document.getElementById('turn-log'); log.innerHTML+=msg+"<br>"; log.scrollTop=log.scrollHeight; }
-
-function checkWin(){
-  if(playerLife<=0){ alert("AI wins!"); location.reload(); }
-  else if(aiLife<=0){ alert("Player wins!"); location.reload(); }
-}
 </script>
 </body>
 </html>
