@@ -62,32 +62,42 @@ let playerDeck=[], aiDeck=[], playerHand=[], aiHand=[], playerBattlefield=[], ai
 let playerLife=20, aiLife=20, playerLands=0, aiLands=0, turn='player';
 let aiDifficulty='easy';
 
+function expandDeck(deckJson) {
+  let deck = [];
+  deckJson.deck.forEach(card => {
+    for(let i=0; i<card.quantity; i++){
+      deck.push({...card});
+    }
+  });
+  return deck;
+}
+
 async function startBattle(){
   // Reset everything
   playerDeck=[], aiDeck=[], playerHand=[], aiHand=[], playerBattlefield=[], aiBattlefield=[], playerGrave=[], aiGrave=[];
   playerLife=20; aiLife=20; playerLands=0; aiLands=0; turn='player';
   document.getElementById('container').style.display='flex';
   document.getElementById('turn-log').innerHTML='';
-  
+
   aiDifficulty = document.getElementById('aiLevel').value;
-  
+
   // Load player deck
   try{
-    playerDeck = JSON.parse(document.getElementById('playerDeckJson').value);
+    const importedJson = JSON.parse(document.getElementById('playerDeckJson').value);
+    playerDeck = expandDeck(importedJson);
   }catch(e){ alert('Invalid JSON'); return; }
-  
+
   // AI deck generation
   aiDeck = generateAIDeck();
-  
+
   // Draw initial hands
   for(let i=0;i<7;i++){ drawCard('player'); drawCard('ai'); }
-  
+
   updateUI();
   logTurn("Battle started. Player goes first.");
 }
 
 function generateAIDeck(){
-  // Randomly select 60 cards from Scryfall or same as player deck for now
   let aiD=[];
   for(let i=0;i<60;i++){
     let card = playerDeck[Math.floor(Math.random()*playerDeck.length)];
@@ -119,7 +129,6 @@ function endTurn(){
 }
 
 function aiTurn(){
-  // Play land if any
   let landIndex = aiHand.findIndex(c=>c.type_line.toLowerCase().includes('land'));
   if(landIndex>=0){
     aiLands++;
@@ -127,9 +136,7 @@ function aiTurn(){
     aiBattlefield.push(land);
     logTurn("AI played a land: "+land.name);
   }
-  // Play creatures or spells based on difficulty
   playAICards();
-  // Attack phase
   aiAttack();
   endTurn();
 }
@@ -141,15 +148,13 @@ function playAICards(){
     return cost<=maxMana;
   });
   if(playable.length==0) return;
-  
+
   if(aiDifficulty=='easy'){
-    // Play one random card
     let card = playable[Math.floor(Math.random()*playable.length)];
     aiBattlefield.push(card);
     aiHand.splice(aiHand.indexOf(card),1);
     logTurn("AI played "+card.name);
   }else if(aiDifficulty=='medium'){
-    // Play all possible creatures
     playable.forEach(c=>{
       if(c.type_line.toLowerCase().includes('creature')){
         aiBattlefield.push(c);
@@ -158,7 +163,6 @@ function playAICards(){
       }
     });
   }else{
-    // Hard AI: prioritize highest power creatures first
     playable.sort((a,b)=>{
       let ap = a.power?parseInt(a.power):0;
       let bp = b.power?parseInt(b.power):0;
@@ -209,37 +213,35 @@ function getManaCost(card){
 function updateUI(){
   document.getElementById('playerLife').innerText=playerLife;
   document.getElementById('aiLife').innerText=aiLife;
-  
-  // Hand
+
   let ph = document.getElementById('playerHand'); ph.innerHTML='';
   playerHand.forEach(c=>{
     let div=document.createElement('div'); div.className='card';
     div.innerText=c.name+"\n"+c.type_line;
     ph.appendChild(div);
   });
-  
-  // Battlefield
+
   let pb = document.getElementById('playerBattlefield'); pb.innerHTML='';
   playerBattlefield.forEach(c=>{
     let div=document.createElement('div'); div.className='card';
     div.innerText=c.name+"\n"+c.type_line;
     pb.appendChild(div);
   });
-  
+
   let ab = document.getElementById('aiBattlefield'); ab.innerHTML='';
   aiBattlefield.forEach(c=>{
     let div=document.createElement('div'); div.className='card';
     div.innerText=c.name+"\n"+c.type_line;
     ab.appendChild(div);
   });
-  
-  // Graveyards
+
   let pg = document.getElementById('playerGraveyard'); pg.innerHTML='';
   playerGrave.forEach(c=>{
     let div=document.createElement('div'); div.className='card';
     div.innerText=c.name;
     pg.appendChild(div);
   });
+
   let ag = document.getElementById('aiGraveyard'); ag.innerHTML='';
   aiGrave.forEach(c=>{
     let div=document.createElement('div'); div.className='card';
