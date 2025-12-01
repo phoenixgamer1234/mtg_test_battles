@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MTG Battle Layout</title>
+<title>MTG Battle Zones</title>
 <style>
   body {
     margin: 0;
@@ -31,35 +31,76 @@
 
   .ai, .player {
     flex: 1;
-    display: flex;
-    flex-direction: column;
+    position: relative;
     border: 2px solid #444;
     margin: 6px;
     border-radius: 10px;
-    padding: 10px;
-  }
-
-  .ai {
-    background-color: rgba(255, 0, 0, 0.1);
-  }
-
-  .player {
-    background-color: rgba(0, 0, 255, 0.1);
-  }
-
-  h2 {
-    margin: 0 0 6px 0;
-  }
-
-  .battlefield {
-    flex: 1;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    background-color: rgba(255,255,255,0.2);
-    border-radius: 6px;
     padding: 6px;
+    background-color: rgba(255,255,255,0.1);
   }
+
+  .zone {
+    position: absolute;
+    border: 2px dashed #888;
+    border-radius: 6px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: bold;
+    background-color: rgba(200,200,200,0.2);
+  }
+
+  /* Zones layout for each battlefield */
+  .lands {
+    bottom: 10px;
+    left: 10px;
+    width: 45%;
+    height: 30%;
+    background-color: rgba(50,205,50,0.3);
+  }
+
+  .artifacts {
+    bottom: 50px;
+    left: 10px;
+    width: 15%;
+    height: 20%;
+    background-color: rgba(192,192,192,0.3);
+  }
+
+  .enchantments {
+    bottom: 50px;
+    left: 25%;
+    width: 15%;
+    height: 20%;
+    background-color: rgba(255,182,193,0.3);
+  }
+
+  .library {
+    top: 10px;
+    right: 10px;
+    width: 10%;
+    height: 20%;
+    background-color: rgba(135,206,250,0.3);
+  }
+
+  .graveyard {
+    top: 35px;
+    right: 10px;
+    width: 10%;
+    height: 20%;
+    transform: rotate(90deg);
+    transform-origin: top left;
+    background-color: rgba(255,165,0,0.3);
+  }
+
+  .creatures {
+    top: 40%;
+    left: 20%;
+    width: 60%;
+    height: 50%;
+    background-color: rgba(255,255,0,0.3);
+  }
+
 </style>
 </head>
 <body>
@@ -67,14 +108,24 @@
 <header>MTG Battle vs AI</header>
 
 <div class="board">
+  <!-- AI Battlefield -->
   <div class="ai">
-    <h2>AI Battlefield</h2>
-    <div class="battlefield" id="aiBattlefield"></div>
+    <div class="zone lands">AI Lands</div>
+    <div class="zone artifacts">AI Artifacts</div>
+    <div class="zone enchantments">AI Enchantments</div>
+    <div class="zone library">AI Library</div>
+    <div class="zone graveyard">AI Graveyard/Exile</div>
+    <div class="zone creatures">AI Creatures</div>
   </div>
 
+  <!-- Player Battlefield -->
   <div class="player">
-    <h2>Your Battlefield</h2>
-    <div class="battlefield" id="playerBattlefield"></div>
+    <div class="zone lands">Player Lands</div>
+    <div class="zone artifacts">Player Artifacts</div>
+    <div class="zone enchantments">Player Enchantments</div>
+    <div class="zone library">Player Library</div>
+    <div class="zone graveyard">Player Graveyard/Exile</div>
+    <div class="zone creatures">Player Creatures</div>
   </div>
 </div>
 
