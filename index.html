@@ -1,139 +1,605 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MTG Full Battle</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>MTG Battle — vs AI Prototype</title>
 <style>
-  body { font-family: Arial, sans-serif; background: #222; color: #eee; margin:0; padding:0; }
-  #game-container { display: flex; flex-direction: column; align-items: center; padding: 10px; }
-  .zone { border: 1px solid #555; padding: 5px; margin: 5px; min-height: 100px; width: 90%; display: flex; flex-wrap: wrap; background: #333; }
-  .card { width: 80px; margin: 2px; cursor: pointer; border: 1px solid #666; background: #111; }
-  .card img { width: 100%; }
-  #controls { margin: 10px; }
-  button { margin: 2px; padding: 5px; }
+  :root{--bg:#0f1720;--card:#0b1220;--muted:#9aa6b2;--accent:#1ea7a1}
+  body{margin:0;font-family:Inter, system-ui, Arial, sans-serif;background:var(--bg);color:#e6eef3}
+  header{padding:12px 18px;border-bottom:1px solid rgba(255,255,255,0.03)}
+  h1{margin:0;font-size:18px}
+  .wrap{display:flex;gap:12px;padding:12px}
+  .col{background:linear-gradient(180deg,#071020, #0b1624);border-radius:8px;padding:12px;flex:1;min-width:260px;border:1px solid rgba(255,255,255,0.03)}
+  .wide{flex:2}
+  textarea,input,select{width:100%;padding:8px;background:#071826;border:1px solid rgba(255,255,255,0.04);color:#dfeef2;border-radius:6px}
+  button{background:var(--accent);border:none;color:#042022;padding:8px 10px;border-radius:6px;cursor:pointer}
+  button.alt{background:#27434a;color:#dff2ef}
+  .small{font-size:13px;color:var(--muted)}
+  .zone{margin-top:8px;padding:8px;border-radius:6px;background:rgba(255,255,255,0.01);min-height:40px}
+  .card{display:inline-block;background:#0e2430;padding:6px;border-radius:6px;margin:4px;border:1px solid rgba(255,255,255,0.02);min-width:120px}
+  .grid{display:grid;gap:8px}
+  .row{display:flex;gap:8px;align-items:center}
+  #log{height:160px;overflow:auto;background:#021217;border-radius:6px;padding:8px;border:1px solid rgba(255,255,255,0.02);font-family:monospace;font-size:13px}
+  label{font-size:13px;color:var(--muted)}
+  .center{text-align:center}
 </style>
 </head>
 <body>
-<div id="game-container">
-  <h1>MTG Battle Simulator</h1>
+<header>
+  <h1>MTG Battle Simulator — Play vs AI</h1>
+  <div class="small">Paste Untap-style decklist (e.g. "4 Lightning Bolt") → Import → Start battle vs AI</div>
+</header>
 
-  <input type="file" id="deck-file" accept="application/json" />
-  <button onclick="startGame()">Start Game</button>
+<div class="wrap">
+  <div class="col">
+    <strong>Deck Import (Untap/plain-text)</strong>
+    <div class="small">Paste deck list and press Import. Card data fetched from Scryfall (exact name lookup).</div>
+    <textarea id="deckInput" placeholder="Example:
+4 Lightning Bolt
+4 Monastery Swiftspear
+4 Rimrock Knight
+24 Mountain"></textarea>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button id="importBtn">Import Deck</button>
+      <button id="clearDeckBtn" class="alt">Clear</button>
+    </div>
+    <div style="margin-top:10px">
+      <label>AI Difficulty
+        <select id="aiLevel"><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option></select>
+      </label>
+    </div>
+    <div style="margin-top:8px;display:flex;gap:8px">
+      <button id="startBtn">Start Battle</button>
+      <button id="resetBtn" class="alt">Reset</button>
+    </div>
 
-  <div id="player-zones">
-    <h2>Your Hand</h2>
-    <div id="hand" class="zone"></div>
-    <h2>Battlefield</h2>
-    <div id="battlefield" class="zone"></div>
-    <h2>Graveyard</h2>
-    <div id="graveyard" class="zone"></div>
+    <div style="margin-top:12px">
+      <strong>Imported Deck Preview</strong>
+      <div id="importPreview" class="zone small">No deck imported.</div>
+    </div>
+
+    <div style="margin-top:12px">
+      <strong>Log</strong>
+      <div id="log"></div>
+    </div>
   </div>
 
-  <div id="ai-zones">
-    <h2>AI Battlefield</h2>
-    <div id="ai-battlefield" class="zone"></div>
-    <h2>AI Graveyard</h2>
-    <div id="ai-graveyard" class="zone"></div>
-  </div>
+  <div class="col wide">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <div>
+        <strong>Battlefield</strong>
+        <div class="small">Zones: library, hand, battlefield, graveyard. Use the buttons to play and progress phases.</div>
+      </div>
+      <div>
+        <span class="small">Player Life: <strong id="playerLife">20</strong></span>
+        <span style="margin-left:12px" class="small">AI Life: <strong id="aiLife">20</strong></span>
+      </div>
+    </div>
 
-  <div id="controls">
-    <button onclick="drawCard()">Draw Card</button>
-    <button onclick="nextPhase()">Next Phase</button>
-    <span id="phase-label">Phase: Start</span>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <div class="col" style="flex:1">
+        <div class="row"><strong>Your Area</strong><div style="margin-left:auto" class="small">Lands/Tap: click a land to tap/untap</div></div>
+
+        <div style="margin-top:8px"><label>Library</label><div id="playerLib" class="zone small">---</div></div>
+        <div style="margin-top:8px"><label>Hand</label><div id="playerHand" class="zone"></div></div>
+        <div style="margin-top:8px"><label>Battlefield</label><div id="playerBattle" class="zone"></div></div>
+        <div style="margin-top:8px"><label>Graveyard</label><div id="playerGrave" class="zone small">---</div></div>
+
+        <div style="margin-top:8px;display:flex;gap:8px">
+          <button id="drawBtn">Draw</button>
+          <button id="playLandBtn">Play Land</button>
+          <button id="endTurnBtn" class="alt">End Turn</button>
+        </div>
+      </div>
+
+      <div class="col" style="flex:1">
+        <div class="row"><strong>AI Area</strong><div style="margin-left:auto" class="small">AI difficulty runs autoplayer</div></div>
+
+        <div style="margin-top:8px"><label>Library</label><div id="aiLib" class="zone small">---</div></div>
+        <div style="margin-top:8px"><label>Hand (hidden)</label><div id="aiHand" class="zone small">hidden</div></div>
+        <div style="margin-top:8px"><label>Battlefield</label><div id="aiBattle" class="zone"></div></div>
+        <div style="margin-top:8px"><label>Graveyard</label><div id="aiGrave" class="zone small">---</div></div>
+
+        <div style="margin-top:8px;display:flex;gap:8px">
+          <button id="aiActionBtn">AI Turn</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:12px">
+      <strong>Stack</strong>
+      <div id="stack" class="zone small">Empty</div>
+    </div>
+
+    <div style="margin-top:12px" class="center">
+      <div class="small">Phase: <strong id="phaseLabel">Idle</strong></div>
+    </div>
+
   </div>
 </div>
 
 <script>
-let deck = [];
-let hand = [];
-let battlefield = [];
-let graveyard = [];
-let aiBattlefield = [];
-let aiGraveyard = [];
-let phase = 0;
-let phases = ['Start', 'Draw', 'Main', 'Combat', 'End'];
+// ---------- Utilities ----------
+const logEl = document.getElementById('log');
+function log(s){ logEl.innerHTML += escapeHtml(s) + '<br>'; logEl.scrollTop = logEl.scrollHeight; console.log(s); }
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function shuffle(array){ for(let i=array.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [array[i],array[j]]=[array[j],array[i]] } return array; }
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
 
-function getCardImage(card) {
-    if(card.image_uris && card.image_uris.small) return card.image_uris.small;
-    if(card.card_faces && card.card_faces[0].image_uris) return card.card_faces[0].image_uris.small;
-    return '';
-}
+// ---------- State ----------
+let importedDeckList = []; // [{name,count}]
+let playerDeck = []; // array of card objects (expanded)
+let aiDeck = [];
+let player = {life:20, library:[], hand:[], battlefield:[], graveyard:[], landsPlayed:0, manaPool:0};
+let ai = {life:20, library:[], hand:[], battlefield:[], graveyard:[], landsPlayed:0, manaPool:0};
+let stack = []; // {source, card, controller, type, payload}
+let phase = 'idle';
+let turn = 0; // 0 player start
+let currentPlayer = 'player'; // 'player' or 'ai'
+let aiDifficulty = 'easy';
+let waitingFor = null; // interaction lock
+const SNAIL = 250; // pacing ms for AI actions
 
-function loadDeckFromFile(file) {
-    const reader = new FileReader();
-    reader.onload = e => {
-        try {
-            const json = JSON.parse(e.target.result);
-            deck = [];
-            json.deck.forEach(c => {
-                for(let i=0;i<c.count;i++) deck.push(c);
-            });
-            alert('Deck loaded: ' + deck.length + ' cards');
-        } catch(err) {
-            alert('Invalid JSON: ' + err);
-        }
+// ---------- UI Refs ----------
+const deckInput = document.getElementById('deckInput');
+const importBtn = document.getElementById('importBtn');
+const importPreview = document.getElementById('importPreview');
+const startBtn = document.getElementById('startBtn');
+const clearDeckBtn = document.getElementById('clearDeckBtn');
+const playerHandDiv = document.getElementById('playerHand');
+const playerBattleDiv = document.getElementById('playerBattle');
+const aiBattleDiv = document.getElementById('aiBattle');
+const playerGrave = document.getElementById('playerGrave');
+const aiGrave = document.getElementById('aiGrave');
+const playerLib = document.getElementById('playerLib');
+const aiLib = document.getElementById('aiLib');
+const playerLifeEl = document.getElementById('playerLife');
+const aiLifeEl = document.getElementById('aiLife');
+const drawBtn = document.getElementById('drawBtn');
+const playLandBtn = document.getElementById('playLandBtn');
+const endTurnBtn = document.getElementById('endTurnBtn');
+const aiActionBtn = document.getElementById('aiActionBtn');
+const stackDiv = document.getElementById('stack');
+const phaseLabel = document.getElementById('phaseLabel');
+const importExportArea = document.getElementById('importExportArea') || null; // not present here
+const importDeckBtn = document.getElementById('importDeckBtn') || null;
+const exportDeckBtn = document.getElementById('exportDeckBtn') || null;
+const aiLevelSelect = document.getElementById('aiLevel');
+
+// ---------- Scryfall helpers ----------
+async function fetchCardByNameExact(name){
+  // use Scryfall "named" endpoint
+  const url = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(name)}`;
+  try{
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('Not found');
+    const data = await res.json();
+    // normalize fields we care about
+    return {
+      id: data.id,
+      name: data.name,
+      mana_cost: data.mana_cost || '',
+      type_line: data.type_line || '',
+      oracle_text: data.oracle_text || (data.card_faces && data.card_faces[0] && data.card_faces[0].oracle_text) || '',
+      power: data.power || (data.card_faces && data.card_faces[0] && data.card_faces[0].power) || null,
+      toughness: data.toughness || (data.card_faces && data.card_faces[0] && data.card_faces[0].toughness) || null,
+      image: data.image_uris?.small || data.card_faces?.[0]?.image_uris?.small || null,
+      colors: data.color_identity || data.colors || []
     };
-    reader.readAsText(file);
+  }catch(e){
+    log(`⚠️ Scryfall lookup failed for "${name}" — skipping that entry.`);
+    return null;
+  }
 }
 
-document.getElementById('deck-file').addEventListener('change', e => loadDeckFromFile(e.target.files[0]));
+// ---------- Import deck (Untap-style) ----------
+importBtn.addEventListener('click', async ()=>{
+  const txt = deckInput.value.trim();
+  if(!txt){ alert('Paste a deck list first'); return; }
+  const lines = txt.split('\n').map(l=>l.trim()).filter(Boolean);
+  importedDeckList = [];
+  importPreview.innerHTML = 'Importing... (fetching card info)';
+  for(const ln of lines){
+    const m = ln.match(/^(\d+)\s+(.*)$/);
+    if(!m) continue;
+    const cnt = parseInt(m[1]);
+    const name = m[2];
+    // fetch card info once per unique name
+    importedDeckList.push({name, count: cnt});
+  }
+  // show preview names now; actual card resolution happens on "Start Battle"
+  importPreview.innerHTML = importedDeckList.map(x=>`${x.count} × ${escapeHtml(x.name)}`).join('<br>');
+  log('Deck parsed. Press "Start Battle" to resolve cards and begin.');
+});
 
-function drawCard() {
-    if(deck.length === 0) return alert('Deck empty');
-    const card = deck.shift();
-    hand.push(card);
-    renderZones();
-}
+// clear deck
+clearDeckBtn.addEventListener('click', ()=>{
+  deckInput.value=''; importedDeckList = []; importPreview.innerHTML = 'No deck imported.';
+});
 
-function playCard(index) {
-    const card = hand.splice(index, 1)[0];
-    battlefield.push(card);
-    renderZones();
-}
-
-function renderZones() {
-    const handDiv = document.getElementById('hand');
-    const bfDiv = document.getElementById('battlefield');
-    const graveDiv = document.getElementById('graveyard');
-    const aiBfDiv = document.getElementById('ai-battlefield');
-    const aiGrDiv = document.getElementById('ai-graveyard');
-
-    handDiv.innerHTML = hand.map((c,i)=>`<div class="card" onclick="playCard(${i})"><img src='${getCardImage(c)}' /></div>`).join('');
-    bfDiv.innerHTML = battlefield.map(c=>`<div class="card"><img src='${getCardImage(c)}' /></div>`).join('');
-    graveDiv.innerHTML = graveyard.map(c=>`<div class="card"><img src='${getCardImage(c)}' /></div>`).join('');
-
-    aiBfDiv.innerHTML = aiBattlefield.map(c=>`<div class="card"><img src='${getCardImage(c)}' /></div>`).join('');
-    aiGrDiv.innerHTML = aiGraveyard.map(c=>`<div class="card"><img src='${getCardImage(c)}' /></div>`).join('');
-}
-
-function nextPhase() {
-    phase = (phase + 1) % phases.length;
-    document.getElementById('phase-label').innerText = 'Phase: ' + phases[phase];
-
-    if(phases[phase] === 'Draw') drawCard();
-    if(phases[phase] === 'Combat') aiAttack();
-}
-
-function startGame() {
-    if(deck.length === 0) return alert('Load a deck first');
-    for(let i=0;i<7;i++) drawCard();
-    alert('Game started!');
-}
-
-function aiAttack() {
-    if(aiBattlefield.length === 0) return;
-    // AI deals 1 damage per creature to player hand as example
-    if(hand.length>0) {
-        const lostCard = hand.shift();
-        graveyard.push(lostCard);
-        alert('AI attacked! You lost a card.');
+// ---------- Build decks from imported list ----------
+async function buildDecksFromImported(){
+  if(!importedDeckList.length){ alert('No imported deck. Paste list and import first.'); return false; }
+  // expand into array of actual card objects (player deck)
+  playerDeck = [];
+  for(const it of importedDeckList){
+    for(let i=0;i<it.count;i++){
+      const card = await fetchCardByNameExact(it.name);
+      if(card) playerDeck.push(card);
+      // small pause to avoid hammering Scryfall
+      await sleep(50);
     }
-    renderZones();
+  }
+  if(playerDeck.length < 40){ if(!confirm('Deck less than 40 cards — continue?')) return false; }
+  // For AI, generate a simple randomized deck by copying player's but shuffling and reusing cards
+  aiDeck = shuffle([...playerDeck.map(c=>({...c}))]).slice();
+  // If AI deck too small, duplicate to at least 40
+  while(aiDeck.length < 40) aiDeck = aiDeck.concat(aiDeck.slice(0, Math.min(40-aiDeck.length, aiDeck.length)));
+  return true;
 }
-</script>
-</body>
-</html>
 
+// ---------- Game lifecycle ----------
+startBtn.addEventListener('click', async ()=>{
+  aiDifficulty = aiLevelSelect.value || 'easy';
+  const ok = await buildDecksFromImported();
+  if(!ok) return;
+  setupNewGame();
+  await initialDraw();
+  phase = 'beginning';
+  currentPlayer = 'player';
+  turn = 1;
+  updateUI();
+  log('Battle started. Player goes first.');
+});
+
+document.getElementById('resetBtn').addEventListener('click', ()=>{
+  location.reload();
+});
+
+// initial game setup
+function setupNewGame(){
+  player = {life:20, library:shuffle(playerDeck.slice()), hand:[], battlefield:[], graveyard:[], landsPlayed:0, manaPool:0};
+  ai = {life:20, library:shuffle(aiDeck.slice()), hand:[], battlefield:[], graveyard:[], landsPlayed:0, manaPool:0};
+  stack = [];
+  phase = 'idle';
+  turn = 0;
+  currentPlayer = 'player';
+  document.getElementById('playerLife').textContent = player.life;
+  document.getElementById('aiLife').textContent = ai.life;
+}
+
+// draw opening 7
+async function initialDraw(){
+  for(let i=0;i<7;i++){ drawCard('player'); drawCard('ai'); }
+  updateUI();
+}
+
+// draw one
+drawBtn.addEventListener('click', ()=>{ drawCard('player'); updateUI(); });
+
+function drawCard(who){
+  const actor = who==='player'?player:ai;
+  if(actor.library.length===0){ log(`${who} has no library — lose on draw`); return; }
+  const c = actor.library.shift();
+  actor.hand.push(c);
+  if(who==='player') log(`You draw: ${c.name}`);
+  else log(`AI draws a card`);
+  updateUI();
+}
+
+// play land
+playLandBtn.addEventListener('click', ()=>{ playLand('player'); });
+
+function playLand(who){
+  const actor = who==='player'?player:ai;
+  if(actor.landsPlayed >= 1){ if(who==='player') alert('You already played a land this turn'); return false; }
+  // find a land in hand
+  const idx = actor.hand.findIndex(c => (c.type_line||'').toLowerCase().includes('land'));
+  if(idx<0){ if(who==='player') alert('No land in hand'); return false; }
+  const card = actor.hand.splice(idx,1)[0];
+  actor.battlefield.push({...card, tapped:false});
+  actor.landsPlayed++;
+  log(`${who==='player'?'You':'AI'} play land: ${card.name}`);
+  updateUI();
+  return true;
+}
+
+// tap/untap land click handler (player)
+playerBattleDiv.addEventListener('click', (ev)=>{
+  const el = ev.target.closest('.card');
+  if(!el) return;
+  const id = el.dataset.cid;
+  const idx = player.battlefield.findIndex(c=>c.id==id);
+  if(idx>=0){
+    const p = player.battlefield[idx];
+    if((p.type_line||'').toLowerCase().includes('land')){
+      p.tapped = !p.tapped;
+      updateUI();
+    }
+  }
+});
+
+// end turn
+endTurnBtn.addEventListener('click', async ()=>{
+  await endTurn('player');
+});
+
+// endTurn implementation
+async function endTurn(who){
+  if(who !== currentPlayer) return;
+  // resolve any pending own actions?
+  // pass priority and let AI act when appropriate
+  if(who==='player'){
+    // reset mana pool
+    player.manaPool = 0;
+    player.landsPlayed = 0;
+    // next AI turn
+    currentPlayer = 'ai';
+    await aiTakeTurn();
+    currentPlayer = 'player';
+    // untap at start of player's next turn happens in phase machine
+  }
+  updateUI();
+}
+
+async function aiTakeTurn(){
+  phaseLabel.textContent = 'AI Turn';
+  log('--- AI turn begins ---');
+  // untap
+  ai.battlefield.forEach(c=>c.tapped = false);
+  ai.landsPlayed = 0;
+  await sleep(SNAIL);
+
+  // draw
+  if(ai.library.length>0){
+    ai.hand.push(ai.library.shift());
+    log('AI draws a card');
+    await sleep(SNAIL);
+  }
+
+  // AI plays: lands first
+  // attempt to play a land automatically
+  const landIdx = ai.hand.findIndex(c=> (c.type_line||'').toLowerCase().includes('land'));
+  if(landIdx>=0 && ai.landsPlayed<1){
+    const land = ai.hand.splice(landIdx,1)[0];
+    ai.battlefield.push({...land, tapped:false});
+    ai.landsPlayed++;
+    log('AI plays a land');
+    await sleep(SNAIL);
+  }
+
+  // calculate available mana (untapped lands)
+  ai.manaPool = countUntappedLands(ai.battlefield);
+  // AI will try to cast spells according to difficulty
+  if(aiDifficulty==='easy') await aiEasyPlay();
+  else if(aiDifficulty==='medium') await aiMediumPlay();
+  else await aiHardPlay();
+
+  // Attack phase: AI attacks with creatures
+  await sleep(SNAIL);
+  const attackers = ai.battlefield.filter(c=> (c.type_line||'').toLowerCase().includes('creature') && !c.tapped);
+  if(attackers.length>0){
+    // simple attack all
+    let total=0;
+    attackers.forEach(a=>{ a.tapped=true; total += parseInt(a.power||'0') || 0; });
+    player.life -= total;
+    log(`AI attacks with ${attackers.length} creatures for ${total} damage!`);
+    updateUI();
+    await sleep(SNAIL);
+    checkForWin();
+  }
+
+  // end
+  log('--- AI turn ends ---');
+  phaseLabel.textContent = 'Player turn';
+  // untap player lands at start of their turn
+  player.battlefield.forEach(c=>c.tapped = false);
+  player.landsPlayed = 0;
+  updateUI();
+}
+
+// count untapped lands
+function countUntappedLands(bf){
+  return bf.filter(c=> (c.type_line||'').toLowerCase().includes('land') && !c.tapped ).length;
+}
+
+// AI play strategies
+async function aiEasyPlay(){
+  // play first creature if mana allows
+  await sleep(SNAIL);
+  ai.manaPool = countUntappedLands(ai.battlefield);
+  // simple: cast cheapest creature by mana cost numeric
+  const playable = ai.hand.filter(c=>isPlayable(ai, c));
+  if(playable.length){
+    const p = playable[Math.floor(Math.random()*playable.length)];
+    await castSpell('ai', p);
+  }
+}
+
+async function aiMediumPlay(){
+  await sleep(SNAIL);
+  ai.manaPool = countUntappedLands(ai.battlefield);
+  // play creatures preferentially, lowest cost first
+  const creatures = ai.hand.filter(c=> (c.type_line||'').toLowerCase().includes('creature'));
+  creatures.sort((a,b)=>manaCostValue(a) - manaCostValue(b));
+  for(const c of creatures){
+    if(isPlayable(ai,c)){ await castSpell('ai', c); await sleep(SNAIL); }
+  }
+  // then noncreature spells
+  const others = ai.hand.filter(c=> !(c.type_line||'').toLowerCase().includes('creature'));
+  for(const c of others){
+    if(isPlayable(ai,c)){ await castSpell('ai', c); await sleep(SNAIL); }
+  }
+}
+
+async function aiHardPlay(){
+  await sleep(SNAIL);
+  ai.manaPool = countUntappedLands(ai.battlefield);
+  // prioritize highest power creatures and damage spells
+  const creatures = ai.hand.filter(c=> (c.type_line||'').toLowerCase().includes('creature'));
+  creatures.sort((a,b)=> (parseInt(b.power||'0')||0) - (parseInt(a.power||'0')||0));
+  for(const c of creatures){
+    if(isPlayable(ai,c)){ await castSpell('ai', c); await sleep(SNAIL); }
+  }
+  // damage spells
+  const damageSpells = ai.hand.filter(c=> /deal \d+ damage/i.test(c.oracle_text||''));
+  for(const s of damageSpells){
+    if(isPlayable(ai,s)){
+      // choose target: if can kill player, target player; else prefer kill creature
+      const dmg = extractFirstNumber(s.oracle_text) || 0;
+      if(player.life <= dmg){ await castSpell('ai', s, {target:'player'}); await sleep(SNAIL); }
+      else {
+        // try creature target
+        const pc = player.battlefield.find(cr => (parseInt(cr.toughness)||0) <= dmg);
+        if(pc) await castSpell('ai', s, {target:pc});
+        else await castSpell('ai', s, {target:'player'});
+        await sleep(SNAIL);
+      }
+    }
+  }
+}
+
+// ---------- Play/Casting spells ----------
+function manaCostValue(card){
+  // approximate: digits + count of WUBRG in cost
+  const s = card.mana_cost || card.oracle_text || '';
+  const mDigits = (s.match(/\d+/) || [0])[0] || 0;
+  const letters = (s.match(/[WUBRG]/g) || []).length;
+  return parseInt(mDigits) + letters;
+}
+
+function isPlayable(actorObj, card){
+  // check mana: number of untapped lands >= cost
+  const cost = manaCostValue(card);
+  const untapped = countUntappedLands(actorObj.battlefield);
+  return untapped >= cost;
+}
+
+// castSpell resolves immediately by tapping lands (simplified) and pushing to battlefield or resolving effect
+async function castSpell(who, card, opts = {}){
+  const actor = who==='player'?player:ai;
+  // find card in hand by id (Scryfall id)
+  const idx = actor.hand.findIndex(c=>c.id === card.id || c.name===card.name);
+  if(idx<0) return false;
+  const c = actor.hand.splice(idx,1)[0];
+
+  // pay cost by tapping lands (simplified)
+  const cost = manaCostValue(c);
+  let need = cost;
+  for(const land of actor.battlefield){
+    if(need<=0) break;
+    if((land.type_line||'').toLowerCase().includes('land') && !land.tapped){ land.tapped = true; need--; }
+  }
+
+  log(`${who==='player'?'You':'AI'} cast ${c.name} (cost ≈ ${cost})`);
+  // resolve immediately for creatures -> enters battlefield
+  if((c.type_line||'').toLowerCase().includes('creature')){
+    const perm = {...c, tapped:false};
+    actor.battlefield.push(perm);
+    log(`${c.name} enters the battlefield under ${who==='player'?'your':'AI'} control`);
+    updateUI();
+    return true;
+  }
+
+  // instants/sorceries: attempt to resolve effect: common pattern "deal X damage to target"
+  const txt = c.oracle_text||'';
+  const dmg = extractFirstNumber(txt) || 0;
+  if(dmg>0 && /deal .* damage/i.test(txt)){
+    // find target
+    let target = opts.target || 'player';
+    if(target === 'player' || target === 'ai') {
+      if(target === 'player') { player.life -= dmg; log(`${c.name} deals ${dmg} damage to you`); }
+      else { ai.life -= dmg; log(`${c.name} deals ${dmg} damage to AI`); }
+    } else if(target && target.name){
+      // assuming target is creature object
+      const targ = findAndDamageCreature(target, dmg);
+      if(targ) log(`${c.name} deals ${dmg} damage to ${target.name}`);
+    } else {
+      // default: damage opponent
+      if(who==='player'){ ai.life -= dmg; log(`${c.name} deals ${dmg} damage to AI`); }
+      else { player.life -= dmg; log(`${c.name} deals ${dmg} damage to you`); }
+    }
+    actor.graveyard.push(c);
+    updateUI();
+    checkForWin();
+    return true;
+  }
+
+  // default: put into graveyard
+  actor.graveyard.push(c);
+  updateUI();
+  return true;
+}
+
+function extractFirstNumber(s){
+  const m = String(s).match(/(-?\d+)/);
+  return m?parseInt(m[0]):0;
+}
+
+function findAndDamageCreature(targetObj, dmg){
+  // find in both battlefields
+  const arrs = [player.battlefield, ai.battlefield];
+  for(const arr of arrs){
+    const idx = arr.findIndex(x=>x.id===targetObj.id || x.name===targetObj.name);
+    if(idx>=0){
+      const card = arr[idx];
+      // simple damage tracking via temporary property
+      card._damage = (card._damage||0) + dmg;
+      // check lethal
+      const tough = parseInt(card.toughness) || 0;
+      if((card._damage||0) >= tough){
+        // move to graveyard
+        const owner = arr===player.battlefield ? player : ai;
+        owner.graveyard.push(card);
+        arr.splice(idx,1);
+        log(`${card.name} is destroyed and sent to the graveyard`);
+      }
+      updateUI();
+      return true;
+    }
+  }
+  return false;
+}
+
+// ---------- UI Update ----------
+function updateUI(){
+  // life
+  playerLifeEl.textContent = player.life;
+  aiLifeEl.textContent = ai.life;
+  // counts
+  playerLib.textContent = `${player.library.length} cards`;
+  aiLib.textContent = `${ai.library.length} cards`;
+  playerGrave.textContent = (player.graveyard.map(c=>c.name).slice(-6).reverse().join(', ') || '---');
+  aiGrave.textContent = (ai.graveyard.map(c=>c.name).slice(-6).reverse().join(', ') || '---');
+  // hand
+  playerHandDiv.innerHTML = player.hand.map(c=>`<div class="card" data-cid="${c.id}"><strong>${escapeHtml(c.name)}</strong><div class="small">${escapeHtml(c.type_line)}</div></div>`).join('') || '<div class="small">Empty hand</div>';
+  // battlefield
+  playerBattleDiv.innerHTML = player.battlefield.map(c=>`<div class="card" data-cid="${c.id}">${escapeHtml(c.name)}<div class="small">${escapeHtml(c.type_line)} ${c.tapped?'<span class="small"> (tapped)</span>':''}</div></div>`).join('') || '<div class="small">Empty</div>';
+  aiBattleDiv.innerHTML = ai.battlefield.map(c=>`<div class="card">${escapeHtml(c.name)}<div class="small">${escapeHtml(c.type_line)}</div></div>`).join('') || '<div class="small">Empty</div>';
+  // stack
+  stackDiv.innerHTML = stack.length ? stack.map(s=>escapeHtml(s.card.name + ' — ' + s.controller)).reverse().join('<br>') : 'Empty';
+  // phase
+  phaseLabel.textContent = phase;
+}
+
+// ---------- Simple win check ----------
+function checkForWin(){
+  if(player.life <= 0){ alert('You lost!'); log('Game over — AI wins'); }
+  if(ai.life <= 0){ alert('You win!'); log('Game over — You win'); }
+}
+
+// ---------- AI manual trigger (debug) ----------
+aiActionBtn.addEventListener('click', async ()=>{ await aiTakeTurn(); });
+
+// ---------- Import deck file via paste (support quick test) ----------
+/* Note: Deck import uses Scryfall exact-name lookup. If a card fails, it will be skipped.
+   For faster testing you can paste a smaller deck list. */
+
+// ---------- End ----------
+log('Ready — paste a deck and press Import, then Start Battle.');
+updateUI();
+
+</script>
 </body>
 </html>
