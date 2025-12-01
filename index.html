@@ -47,71 +47,75 @@
     align-items: center;
     font-weight: bold;
     background-color: rgba(200,200,200,0.2);
+    text-align: center;
   }
 
-  /* Player/AI Zones Layout */
-  /* Lands */
+  /* Compute card height as 1/3 of battlefield */
+  .card-height {
+    height: calc(100% / 3);
+  }
+
+  /* MTG card standard dimensions ratio (width/height ~0.714) */
+  .card-width {
+    width: calc((100% / 3) * 0.714);
+  }
+
+  /* Zones */
   .lands {
     bottom: 10px;
     left: 10px;
     width: 50%;
-    height: 33px; /* 1/3 card height */
+    height: calc(100% / 3); /* card height */
     background-color: rgba(50,205,50,0.3);
   }
 
-  /* Library */
+  .artifacts {
+    bottom: 10px;
+    left: 10px;
+    width: 25%;
+    height: calc(100% / 3); /* card height */
+    background-color: rgba(192,192,192,0.3);
+  }
+
+  .enchantments {
+    bottom: 10px;
+    left: 35%;
+    width: 25%;
+    height: calc(100% / 3); /* card height */
+    background-color: rgba(255,182,193,0.3);
+  }
+
   .library {
     top: 10px;
     right: 10px;
-    width: 60px;
-    height: 100px; /* card height */
+    height: calc(100% / 3); /* card height */
+    width: calc((100% / 3) * 0.714); /* card width */
     background-color: rgba(135,206,250,0.3);
   }
 
-  /* Graveyard */
   .graveyard {
-    top: 120px;
+    top: calc(10px + (100% / 3 + 10px)); /* below library */
     right: 10px;
-    width: 60px;
-    height: 100px;
+    height: calc(100% / 3); /* card height */
+    width: calc((100% / 3) * 0.714); /* card width */
     background-color: rgba(255,165,0,0.3);
   }
 
-  /* Exile */
   .exile {
-    top: 230px;
-    right: 10px;
-    width: 100px;
-    height: 60px;
+    top: calc(10px + (100% / 3 + 10px)); /* align top-left with graveyard */
+    right: calc(10px + (100% / 3) * 0.714 + 10px);
+    width: calc(100% / 3); /* card height as width after rotation */
+    height: calc((100% / 3) * 0.714); /* card width as height after rotation */
     transform: rotate(90deg);
     transform-origin: top left;
     background-color: rgba(128,0,128,0.3);
   }
 
-  /* Enchantments */
-  .enchantments {
-    bottom: 10px;
-    right: 10px;
-    width: 25%;
-    height: 33px;
-    background-color: rgba(255,182,193,0.3);
-  }
-
-  /* Artifacts */
-  .artifacts {
-    bottom: 10px;
-    right: 35%;
-    width: 25%;
-    height: 33px;
-    background-color: rgba(192,192,192,0.3);
-  }
-
-  /* Creatures */
   .creatures {
     top: 10px;
     left: 10px;
     right: 10px;
-    bottom: 50px;
+    bottom: calc(10px + (100% / 3) + 10px); /* space left after lands/enchantments/artifacts */
     background-color: rgba(255,255,0,0.3);
   }
 </style>
